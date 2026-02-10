@@ -1,45 +1,62 @@
 package com.arthur.numeromagico.numbermagic.presentation.viewmodels
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import com.arthur.numeromagico.features.numbermagic.presentation.screens.GameUiEvent
-import com.arthur.numeromagico.features.numbermagic.presentation.screens.GameUiState
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import com.arthur.numeromagico.numbermagic.presentation.screens.GameEvent
+import com.arthur.numeromagico.numbermagic.presentation.screens.GameState
 import kotlin.math.abs
-import kotlin.random.Random
 
 class GameViewModel : ViewModel() {
 
-    private val magicNumber = Random.nextInt(1, 21)
 
-    private val _uiState = MutableStateFlow(GameUiState())
-    val uiState: StateFlow<GameUiState> = _uiState
+    var state by mutableStateOf(GameState(targetNumber = generateRandomNumber()))
+        private set
 
-    fun onEvent(event: GameUiEvent) {
+
+    fun onEvent(event: GameEvent) {
         when (event) {
-
-            is GameUiEvent.OnInputChange -> {
-                _uiState.value = _uiState.value.copy(
-                    input = event.value
-                )
-            }
-
-            GameUiEvent.OnTryClick -> {
-                val userNumber = _uiState.value.input.toIntOrNull() ?: return
-                val difference = abs(userNumber - magicNumber)
-
-                val message = when {
-                    difference == 0 -> "¡Correcto!"
-                    difference <= 2 -> "Cerca"
-                    difference <= 5 -> "Medio"
-                    else -> "Lejos"
+            is GameEvent.OnGuessChanged -> {
+                if (event.value.all { it.isDigit() }) {
+                    state = state.copy(userGuess = event.value)
                 }
-
-                _uiState.value = _uiState.value.copy(
-                    message = message,
-                    input = ""
-                )
             }
+            GameEvent.OnSubmitGuess -> processGuess()
+            GameEvent.OnRestartGame -> resetGame()
         }
     }
+
+    private fun processGuess() {
+        val guess = state.userGuess.toIntOrNull() ?: return
+        val target = state.targetNumber
+        val diff = abs(target - guess)
+        val newAttempts = state.attempts + 1
+
+        if (diff == 0) {
+            state = state.copy(
+                isGameOver = true,
+                feedback = "¡Ganaste! El número era $target",
+                attempts = newAttempts
+            )
+        } else {
+            val hint = when {
+                diff <= 5 -> "¡Muy Cerca!"
+                diff <= 15 -> "Medio (Ni frío ni caliente)"
+                else -> "Lejos..."
+            }
+
+            state = state.copy(
+                feedback = hint,
+                attempts = newAttempts,
+                userGuess = ""
+            )
+        }
+    }
+
+    private fun resetGame() {
+        state = GameState(targetNumber = generateRandomNumber())
+    }
+
+    private fun generateRandomNumber(): Int = (1..100).random()
 }
